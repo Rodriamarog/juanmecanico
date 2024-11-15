@@ -109,6 +109,112 @@ app.post('/api/query', async (req, res) => {
   }
 });
 
+app.get('/api/employees', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT ID_Empleado, Nombre FROM empleado');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({ error: 'Error fetching employees' });
+  }
+});
+
+app.get('/api/services', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT ID_Servicio, Descripcion FROM servicio');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    res.status(500).json({ error: 'Error fetching services' });
+  }
+});
+
+app.get('/api/parts', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM parte');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching parts:', error);
+    res.status(500).json({ error: 'Error fetching parts' });
+  }
+});
+
+app.post('/api/assignments', async (req, res) => {
+  try {
+    // Get the last assignment ID
+    const [lastAssignment] = await pool.query(
+      'SELECT ID_Asignacion FROM asignacion ORDER BY ID_Asignacion DESC LIMIT 1'
+    );
+    
+    // Generate new ID (AS0021 if last was AS0020)
+    const lastNum = lastAssignment.length > 0 
+      ? parseInt(lastAssignment[0].ID_Asignacion.substring(2)) 
+      : 0;
+    const newId = `AS${String(lastNum + 1).padStart(4, '0')}`;
+
+    // Insert new assignment with Fecha_Inicio instead of assignmentDate
+    const [result] = await pool.execute(
+      'INSERT INTO asignacion (ID_Asignacion, ID_Empleado, ID_Servicio, ID_Orden_Trabajo, Fecha_Inicio) VALUES (?, ?, ?, ?, ?)',
+      [newId, req.body.employeeId, req.body.serviceId, req.body.workOrderId, req.body.assignmentDate]
+    );
+    
+    res.json({
+      success: true,
+      assignmentId: newId,
+      triggerMessage: 'Asignación creada exitosamente'
+    });
+  } catch (error) {
+    console.error('Error en asignación:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/sales', async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [saleResult] = await connection.execute(
+      'INSERT INTO ventas (ID_Cliente, ID_Orden_Trabajo, Total, Metodo_Pago) VALUES (?, ?, ?, ?)',
+      [req.body.clientId, req.body.workOrderId, req.body.total, req.body.paymentMethod]
+    );
+
+    if (req.body.parts && req.body.parts.length > 0) {
+      for (const part of req.body.parts) {
+        await connection.execute(
+          'INSERT INTO venta_parte (ID_Venta, ID_Parte, Cantidad) VALUES (?, ?, ?)',
+          [saleResult.insertId, part.partId, part.quantity]
+        );
+      }
+    }
+
+    await connection.commit();
+    res.json({ success: true, saleId: saleResult.insertId });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error creating sale:', error);
+    res.status(400).json({ message: error.message });
+  } finally {
+    connection.release();
+  }
+});
+
+app.get('/api/sales/audit/:saleId', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT * FROM ventas_audit_log WHERE ID_Venta = ?',
+      [req.params.saleId]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching audit log:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
