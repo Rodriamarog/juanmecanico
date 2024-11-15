@@ -175,28 +175,31 @@ app.post('/api/assignments', async (req, res) => {
 app.post('/api/sales', async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
+    // Ensure all parameters are defined
+    const total = req.body.total || 0;
+    const paymentMethod = req.body.paymentMethod || 'efectivo';
 
-    const [saleResult] = await connection.execute(
-      'INSERT INTO ventas (ID_Cliente, ID_Orden_Trabajo, Total, Metodo_Pago) VALUES (?, ?, ?, ?)',
-      [req.body.clientId, req.body.workOrderId, req.body.total, req.body.paymentMethod]
+    console.log('Calling stored procedure with values:', { total, paymentMethod });
+
+    // Call the stored procedure
+    const [result] = await connection.execute(
+      'CALL registrar_venta(?, ?)',
+      [total, paymentMethod]
     );
 
-    if (req.body.parts && req.body.parts.length > 0) {
-      for (const part of req.body.parts) {
-        await connection.execute(
-          'INSERT INTO venta_parte (ID_Venta, ID_Parte, Cantidad) VALUES (?, ?, ?)',
-          [saleResult.insertId, part.partId, part.quantity]
-        );
-      }
-    }
-
-    await connection.commit();
-    res.json({ success: true, saleId: saleResult.insertId });
+    const saleId = result[0][0].ID_Venta;
+    
+    res.json({ 
+      success: true, 
+      saleId: saleId,
+      message: 'Venta registrada exitosamente'
+    });
   } catch (error) {
-    await connection.rollback();
     console.error('Error creating sale:', error);
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ 
+      success: false,
+      message: error.message || 'Error al registrar la venta' 
+    });
   } finally {
     connection.release();
   }

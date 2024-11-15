@@ -1,38 +1,51 @@
 DELIMITER //
 
--- Trigger para validar asignaciones
-CREATE TRIGGER validar_asignacion
-BEFORE INSERT ON asignacion
-FOR EACH ROW
+-- Stored procedure for sales
+CREATE PROCEDURE registrar_venta(
+    IN p_total DECIMAL(10,2),
+    IN p_metodo_pago VARCHAR(50)
+)
 BEGIN
-    -- Validar que el empleado no tenga otra asignación en la misma fecha
-    IF EXISTS (
-        SELECT 1 FROM asignacion 
-        WHERE ID_Empleado = NEW.ID_Empleado 
-        AND Fecha_Inicio = NEW.Fecha_Inicio
-    ) THEN
+    DECLARE v_venta_id VARCHAR(6);
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'El empleado ya tiene una asignación en esta fecha';
-    END IF;
+        SET MESSAGE_TEXT = 'Error al procesar la venta';
+    END;
 
-    -- Validar que la orden de trabajo exista y esté activa
-    IF NOT EXISTS (
-        SELECT 1 FROM orden_trabajo 
-        WHERE ID_Orden_Trabajo = NEW.ID_Orden_Trabajo
-        AND Fecha_Salida IS NULL
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'La orden de trabajo no existe o ya está completada';
-    END IF;
+    START TRANSACTION;
 
-    -- Validar que el servicio exista
-    IF NOT EXISTS (
-        SELECT 1 FROM servicio 
-        WHERE ID_Servicio = NEW.ID_Servicio
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'El servicio especificado no existe';
-    END IF;
+    -- Generate new sale ID
+    SELECT COALESCE(MAX(CAST(SUBSTRING(ID_Venta, 1) AS UNSIGNED)), 0) + 1 
+    INTO @next_id 
+    FROM ventas;
+    
+    SET v_venta_id = @next_id;
+
+    -- Register the sale
+    INSERT INTO ventas (ID_Venta, Fecha, Total, Metodo_Pago)
+    VALUES (v_venta_id, CURDATE(), p_total, p_metodo_pago);
+
+    -- Generate audit log
+    INSERT INTO ventas_audit_log (
+        ID_Venta,
+        Fecha_Registro,
+        Accion,
+        Total,
+        Metodo_Pago
+    ) VALUES (
+        v_venta_id,
+        NOW(),
+        'VENTA_NUEVA',
+        p_total,
+        p_metodo_pago
+    );
+
+    COMMIT;
+
+    -- Return the new sale ID
+    SELECT v_venta_id AS ID_Venta;
 END //
 
 DELIMITER ; 
