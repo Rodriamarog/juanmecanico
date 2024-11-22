@@ -7,11 +7,14 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Replace the simple cors() line with this configuration:
+// Replace the previous cors configuration with this:
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true
+  origin: '*',  // WARNING: In production you should specify exact domains
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 app.use(express.json());
