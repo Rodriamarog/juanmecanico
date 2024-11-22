@@ -31,18 +31,25 @@ const SalesRecord = () => {
     e.preventDefault();
     try {
       const response = await axios.post('/api/sales', sale);
-      setMessage({ type: 'success', text: 'Sale recorded successfully!' });
-      // Fetch and display the audit log
-      const auditResponse = await axios.get(`/api/sales/audit/${response.data.saleId}`);
-      setAuditLog(auditResponse.data);
-      // Reset form
-      setSale({
-        clientId: '',
-        workOrderId: '',
-        total: '',
-        paymentMethod: '',
-        parts: []
-      });
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: 'Sale recorded successfully!' });
+
+        // Fetch and display the audit log
+        const auditResponse = await axios.get(`/api/sales/audit/${response.data.saleId}`);
+        setAuditLog(auditResponse.data);
+
+        // Reset form
+        setSale({
+          clientId: '',
+          workOrderId: '',
+          total: '',
+          paymentMethod: '',
+          parts: []
+        });
+      } else {
+        throw new Error(response.data.message);
+      }
     } catch (error) {
       setMessage({ 
         type: 'error', 
@@ -119,4 +126,4 @@ const SalesRecord = () => {
   );
 };
 
-export default SalesRecord; 
+export default SalesRecord;

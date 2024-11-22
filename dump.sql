@@ -290,7 +290,7 @@ CREATE TABLE `promocion` (
 
 LOCK TABLES `promocion` WRITE;
 /*!40000 ALTER TABLE `promocion` DISABLE KEYS */;
-INSERT INTO `promocion` VALUES ('PM0001','20% descuento en cambio de aceite',20.00,'2023-06-01','2023-06-30'),('PM0002','15% descuento en alineación y balanceo',15.00,'2023-06-15','2023-07-15'),('PM0003','10% descuento en reparaciones mayores',10.00,'2023-07-01','2023-07-31'),('PM0004','25% descuento en servicios de frenos',25.00,'2023-08-01','2023-08-31'),('PM0005','5% descuento en compra de accesorios',5.00,'2023-09-01','2023-09-30'),('PM0006','30% descuento en pintura completa',30.00,'2023-10-01','2023-10-31'),('PM0007','50% descuento en segundo cambio de aceite',50.00,'2023-11-01','2023-11-30'),('PM0008','Gratis lavado con cualquier servicio',0.00,'2023-12-01','2023-12-31'),('PM0009','20% descuento en cambio de llantas',20.00,'2024-01-01','2024-01-31'),('PM0010','15% descuento general para nuevos clientes',15.00,'2024-02-01','2024-02-28'),('PM0011','10% descuento en reparación de transmisión',10.00,'2024-03-01','2024-03-31'),('PM0012','25% en revisión y mantenimiento de A/C',25.00,'2024-04-01','2024-04-30'),('PM0013','20% descuento en cambio de amortiguadores',20.00,'2024-05-01','2024-05-31'),('PM0014','15% descuento en cambio de filtro de aire',15.00,'2024-06-01','2024-06-30'),('PM0015','30% descuento para servicios a vehículos híbridos',30.00,'2024-07-01','2024-07-31'),('PM0016','Promoción de verano, 20% en todos los servicios',20.00,'2024-08-01','2024-08-31'),('PM0017','15% descuento en reparaciones de sistema eléctrico',15.00,'2024-09-01','2024-09-30'),('PM0018','25% descuento en cambio de bujías',25.00,'2024-10-01','2024-10-31'),('PM0019','10% descuento en servicios de carrocería y pintura',10.00,'2024-11-01','2024-11-30'),('PM0020','Oferta de fin de año, 30% en diagnósticos',30.00,'2024-12-01','2024-12-31');
+INSERT INTO `promocion` VALUES ('PM0001','20% descuento en cambio de aceite',20.00,'2023-06-01','2023-06-30'),('PM0002','15% descuento en alineación y balanceo',15.00,'2023-06-15','2023-07-15'),('PM0003','10% descuento en reparaciones mayores',10.00,'2023-07-01','2023-07-31'),('PM0004','25% descuento en servicios de frenos',25.00,'2023-08-01','2023-08-31'),('PM0005','5% descuento en compra de accesorios',5.00,'2023-09-01','2023-09-30'),('PM0006','30% descuento en pintura completa',30.00,'2023-10-01','2023-10-31'),('PM0007','50% descuento en segundo cambio de aceite',50.00,'2023-11-01','2023-11-30'),('PM0008','Gratis lavado con cualquier servicio',0.00,'2023-12-01','2023-12-31'),('PM0009','20% descuento en cambio de llantas',20.00,'2024-01-01','2024-01-31'),('PM0010','15% descuento general para nuevos clientes',15.00,'2024-02-01','2024-02-28'),('PM0011','10% descuento en reparación de transmisión',10.00,'2024-03-01','2024-03-31'),('PM0012','25% en revisión y mantenimiento de A/C',25.00,'2024-04-01','2024-04-30'),('PM0013','20% descuento en cambio de amortiguadores',20.00,'2024-05-01','2024-05-31'),('PM0014','15% descuento en cambio de filtro de aire',15.00,'2024-06-01','2024-06-30'),('PM0015','30% descuento para servicios a vehículos híbridos',30.00,'2024-07-01','2024-07-31'),('PM0016','Promoción de verano, 20% en todos los servicios',20.00,'2024-08-01','2024-08-31'),('PM0017','15% descuento en reparaciones de sistema eléctrico',15.00,'2024-09-01','2024-09-30'),('PM0018','25% descuento en cambio de buj��as',25.00,'2024-10-01','2024-10-31'),('PM0019','10% descuento en servicios de carrocería y pintura',10.00,'2024-11-01','2024-11-30'),('PM0020','Oferta de fin de año, 30% en diagnósticos',30.00,'2024-12-01','2024-12-31');
 /*!40000 ALTER TABLE `promocion` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -429,3 +429,61 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2024-08-26 10:06:48
+
+--
+-- Stored Procedures
+--
+
+DELIMITER //
+
+CREATE PROCEDURE registrar_venta(
+    IN p_total DECIMAL(10,2),
+    IN p_metodo_pago VARCHAR(50)
+)
+BEGIN
+    DECLARE nuevo_id VARCHAR(6);
+    DECLARE fecha_actual DATE;
+    
+    -- Validate inputs
+    IF p_total IS NULL OR p_total <= 0 THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'El total debe ser un número positivo';
+    END IF;
+    
+    IF p_metodo_pago IS NULL OR p_metodo_pago = '' THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'El método de pago es requerido';
+    END IF;
+    
+    -- Get current date
+    SET fecha_actual = CURDATE();
+    
+    -- Generate new sale ID (format: VTxxxx)
+    SELECT CONCAT('VT', LPAD(COALESCE(
+        CAST(MAX(SUBSTRING(ID_Venta, 3)) AS UNSIGNED) + 1, 
+        '0001'
+    ), 4, '0'))
+    INTO nuevo_id
+    FROM ventas;
+    
+    -- Insert the new sale
+    INSERT INTO ventas (
+        ID_Venta, 
+        Fecha, 
+        Total,
+        Cajero,
+        Metodo_Pago  -- Make sure this column exists in your ventas table
+    ) VALUES (
+        nuevo_id, 
+        fecha_actual, 
+        p_total,
+        'EM0008',  -- Default cashier
+        p_metodo_pago
+    );
+    
+    -- Return the new sale ID
+    SELECT nuevo_id AS ID_Venta;
+    
+END //
+
+DELIMITER ;
