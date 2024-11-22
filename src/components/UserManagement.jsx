@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -12,7 +13,7 @@ const UserManagement = () => {
   // Fetch users
   useEffect(() => {
     const fetchUsers = async () => {
-      const response = await axios.get('/api/users');
+      const response = await axios.get(`${API_URL}/api/users`);
       setUsers(response.data);
     };
     fetchUsers();
@@ -22,9 +23,9 @@ const UserManagement = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/users', newUser);
+      await axios.post(`${API_URL}/api/users`, newUser);
       // Refresh users list
-      const response = await axios.get('/api/users');
+      const response = await axios.get(`${API_URL}/api/users`);
       setUsers(response.data);
       setNewUser({ username: '', password: '', role: 'reader' });
     } catch (error) {
@@ -35,7 +36,7 @@ const UserManagement = () => {
   // Remove user
   const handleRemoveUser = async (username) => {
     try {
-      await axios.delete(`/api/users/${username}`);
+      await axios.delete(`${API_URL}/api/users/${username}`);
       setUsers(users.filter(user => user.username !== username));
     } catch (error) {
       console.error('Error removing user:', error);
@@ -86,4 +87,4 @@ const UserManagement = () => {
   );
 };
 
-export default UserManagement; 
+export default UserManagement;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './ServiceAssignment.css';
+import { API_URL } from '../config';
 
 const ServiceAssignment = () => {
   const [employees, setEmployees] = useState([]);
@@ -18,8 +19,8 @@ const ServiceAssignment = () => {
     const fetchData = async () => {
       try {
         const [empResponse, servResponse] = await Promise.all([
-          axios.get('/api/employees'),
-          axios.get('/api/services')
+          axios.get(`${API_URL}/api/employees`),
+          axios.get(`${API_URL}/api/services`)
         ]);
         setEmployees(empResponse.data);
         setServices(servResponse.data);
@@ -33,7 +34,7 @@ const ServiceAssignment = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('/api/assignments', formData);
+      const response = await axios.post(`${API_URL}/api/assignments`, formData);
       setMessage({ 
         type: 'success', 
         text: 'Service assignment created successfully!' 
@@ -134,4 +135,4 @@ const ServiceAssignment = () => {
   );
 };
 
-export default ServiceAssignment; 
+export default ServiceAssignment;

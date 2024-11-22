@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './SalesRecord.css';
+import { API_URL } from '../config';
 
 const SalesRecord = () => {
   const [sale, setSale] = useState({
@@ -30,13 +31,13 @@ const SalesRecord = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('/api/sales', sale);
+      const response = await axios.post(`${API_URL}/api/sales`, sale);
 
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Sale recorded successfully!' });
 
         // Fetch and display the audit log
-        const auditResponse = await axios.get(`/api/sales/audit/${response.data.saleId}`);
+        const auditResponse = await axios.get(`${API_URL}/api/sales/audit/${response.data.saleId}`);
         setAuditLog(auditResponse.data);
 
         // Reset form
