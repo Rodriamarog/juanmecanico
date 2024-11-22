@@ -18,7 +18,6 @@ app.use(cors({
 }));
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'frontend/build')));
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -30,7 +29,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   ssl: {
-    rejectUnauthorized: true
+    rejectUnauthorized: false  // Changed this line
   }
 });
 
@@ -258,11 +257,6 @@ app.get('/api/sales/:saleId', async (req, res) => {
       message: error.message || 'Error al obtener la venta' 
     });
   }
-});
-
-// Handle React routing, return all requests to React app
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
 });
 
 app.listen(port, () => {
