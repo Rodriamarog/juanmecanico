@@ -1,19 +1,22 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'frontend/build')));
 
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: process.env.DB_USER || 'juanmecanico_user',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  database: 'juanmecanico',
+  database: process.env.DB_DATABASE,
+  port: process.env.DB_PORT,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
@@ -151,18 +154,15 @@ app.get('/api/parts', async (req, res) => {
 
 app.post('/api/assignments', async (req, res) => {
   try {
-    // Get the last assignment ID
     const [lastAssignment] = await pool.query(
       'SELECT ID_Asignacion FROM asignacion ORDER BY ID_Asignacion DESC LIMIT 1'
     );
     
-    // Generate new ID (AS0021 if last was AS0020)
     const lastNum = lastAssignment.length > 0 
       ? parseInt(lastAssignment[0].ID_Asignacion.substring(2)) 
       : 0;
     const newId = `AS${String(lastNum + 1).padStart(4, '0')}`;
 
-    // Insert new assignment with Fecha_Inicio instead of assignmentDate
     const [result] = await pool.execute(
       'INSERT INTO asignacion (ID_Asignacion, ID_Empleado, ID_Servicio, ID_Orden_Trabajo, Fecha_Inicio) VALUES (?, ?, ?, ?, ?)',
       [newId, req.body.employeeId, req.body.serviceId, req.body.workOrderId, req.body.assignmentDate]
@@ -187,13 +187,11 @@ app.post('/api/sales', async (req, res) => {
     const connection = await pool.getConnection();
     const { total, paymentMethod } = req.body;
     
-    // Convert total to number and validate
     const numericTotal = parseFloat(total);
     if (isNaN(numericTotal)) {
       throw new Error('Total must be a valid number');
     }
     
-    // Debug log
     console.log('Values being passed to stored procedure:', {
       numericTotal: numericTotal,
       type: typeof numericTotal,
@@ -204,10 +202,9 @@ app.post('/api/sales', async (req, res) => {
     });
 
     try {
-      // Call the stored procedure with explicit type casting
       const [result] = await connection.execute(
         'CALL registrar_venta(?, ?)',
-        [numericTotal.toFixed(2), String(paymentMethod)]  // Explicit type conversion
+        [numericTotal.toFixed(2), String(paymentMethod)]
       );
 
       const saleId = result[0][0].ID_Venta;
@@ -250,6 +247,12 @@ app.get('/api/sales/:saleId', async (req, res) => {
     });
   }
 });
+
+// Handle React routing, return all requests to React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
+});
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
