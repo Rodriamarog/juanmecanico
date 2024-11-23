@@ -3,11 +3,11 @@ const mysql = require('mysql2/promise');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Replace the previous cors configuration with this:
 app.use(cors({
   origin: '*',  // WARNING: In production you should specify exact domains
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -29,11 +29,33 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   ssl: {
-    rejectUnauthorized: false  // Changed this line
+    rejectUnauthorized: false
   }
 });
 
-app.post('/api/query', async (req, res) => {
+// Middleware to authenticate token
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token == null) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// Middleware to check admin role
+const adminOnly = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
+// For view-only endpoints
+app.post('/api/query', authenticateToken, async (req, res) => {
   const { queryId, startDate, endDate, departmentId } = req.body;
   let query, params;
 
@@ -133,67 +155,8 @@ app.post('/api/query', async (req, res) => {
   }
 });
 
-app.get('/api/employees', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT ID_Empleado, Nombre FROM empleado');
-    res.json(rows);
-  } catch (error) {
-    console.error('Error fetching employees:', error);
-    res.status(500).json({ error: 'Error fetching employees' });
-  }
-});
-
-app.get('/api/services', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT ID_Servicio, Descripcion FROM servicio');
-    res.json(rows);
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    res.status(500).json({ error: 'Error fetching services' });
-  }
-});
-
-app.get('/api/parts', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT * FROM parte');
-    res.json(rows);
-  } catch (error) {
-    console.error('Error fetching parts:', error);
-    res.status(500).json({ error: 'Error fetching parts' });
-  }
-});
-
-app.post('/api/assignments', async (req, res) => {
-  try {
-    const [lastAssignment] = await pool.query(
-      'SELECT ID_Asignacion FROM asignacion ORDER BY ID_Asignacion DESC LIMIT 1'
-    );
-    
-    const lastNum = lastAssignment.length > 0 
-      ? parseInt(lastAssignment[0].ID_Asignacion.substring(2)) 
-      : 0;
-    const newId = `AS${String(lastNum + 1).padStart(4, '0')}`;
-
-    const [result] = await pool.execute(
-      'INSERT INTO asignacion (ID_Asignacion, ID_Empleado, ID_Servicio, ID_Orden_Trabajo, Fecha_Inicio) VALUES (?, ?, ?, ?, ?)',
-      [newId, req.body.employeeId, req.body.serviceId, req.body.workOrderId, req.body.assignmentDate]
-    );
-    
-    res.json({
-      success: true,
-      assignmentId: newId,
-      triggerMessage: 'Asignación creada exitosamente'
-    });
-  } catch (error) {
-    console.error('Error en asignación:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-app.post('/api/sales', async (req, res) => {
+// Protect admin routes
+app.post('/api/sales', authenticateToken, adminOnly, async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const { total, paymentMethod } = req.body;
@@ -243,6 +206,66 @@ app.post('/api/sales', async (req, res) => {
   }
 });
 
+app.post('/api/assignments', authenticateToken, adminOnly, async (req, res) => {
+  try {
+    const [lastAssignment] = await pool.query(
+      'SELECT ID_Asignacion FROM asignacion ORDER BY ID_Asignacion DESC LIMIT 1'
+    );
+    
+    const lastNum = lastAssignment.length > 0 
+      ? parseInt(lastAssignment[0].ID_Asignacion.substring(2)) 
+      : 0;
+    const newId = `AS${String(lastNum + 1).padStart(4, '0')}`;
+
+    const [result] = await pool.execute(
+      'INSERT INTO asignacion (ID_Asignacion, ID_Empleado, ID_Servicio, ID_Orden_Trabajo, Fecha_Inicio) VALUES (?, ?, ?, ?, ?)',
+      [newId, req.body.employeeId, req.body.serviceId, req.body.workOrderId, req.body.assignmentDate]
+    );
+    
+    res.json({
+      success: true,
+      assignmentId: newId,
+      triggerMessage: 'Asignación creada exitosamente'
+    });
+  } catch (error) {
+    console.error('Error en asignación:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/employees', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT ID_Empleado, Nombre FROM empleado');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({ error: 'Error fetching employees' });
+  }
+});
+
+app.get('/api/services', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT ID_Servicio, Descripcion FROM servicio');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    res.status(500).json({ error: 'Error fetching services' });
+  }
+});
+
+app.get('/api/parts', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM parte');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching parts:', error);
+    res.status(500).json({ error: 'Error fetching parts' });
+  }
+});
+
 app.get('/api/sales/:saleId', async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -256,6 +279,33 @@ app.get('/api/sales/:saleId', async (req, res) => {
       success: false,
       message: error.message || 'Error al obtener la venta' 
     });
+  }
+});
+
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  try {
+    const [users] = await pool.query(
+      'SELECT * FROM users WHERE username = ? AND password = ?',
+      [username, password]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const user = users[0];
+    const token = jwt.sign(
+      { username: user.username, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ token, role: user.role, username: user.username });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
